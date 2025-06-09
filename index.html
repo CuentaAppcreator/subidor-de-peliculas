@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel Crear Repo y Subir index.html con GitHub Pages</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #ffd700;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      align-items: center;
+    }
+    .container {
+      background-color: #1e1e1e;
+      padding: 25px;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #ffd700;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+      color: #ddd;
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      border-radius: 6px;
+      border: none;
+      background-color: #2b2b2b;
+      color: #fff;
+      font-size: 16px;
+      font-family: monospace;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 150px;
+    }
+    button {
+      background-color: #ffd700;
+      color: #121212;
+      font-weight: 700;
+      margin-top: 25px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover:not(:disabled) {
+      background-color: #e6c200;
+    }
+    button:disabled {
+      background-color: #666;
+      cursor: not-allowed;
+    }
+    .message {
+      margin-top: 20px;
+      font-size: 1.1em;
+      opacity: 0;
+      transition: opacity 1s ease;
+      word-break: break-word;
+    }
+    .message.visible {
+      opacity: 1;
+    }
+    .link {
+      color: #ffd700;
+      text-decoration: underline;
+      word-break: break-word;
+    }
+    .copy-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .copy-btn {
+      flex-shrink: 0;
+      background-color: #444;
+      border-radius: 6px;
+      color: #ffd700;
+      font-weight: 700;
+      padding: 6px 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.3s ease;
+      border: none;
+    }
+    .copy-btn:hover {
+      background-color: #666;
+    }
+    .copy-btn:active {
+      background-color: #222;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📂 Subidor de peliculas como repositorio</h2>
+	<a href="#" >
+	<h3>Siguiente paso</h3></a>
+
+    <label for="token">Token GitHub: ghp_CKEs2YgdvY0sfm8tk8   Jf6P8H88ID271BduX6</label>
+    <input type="password" id="token" placeholder="Pon aquí tu token personal" autocomplete="off" />
+
+    <label for="repoName">Nombre del repositorio:</label>
+    <input type="text" id="repoName" placeholder="Ej: mi-nuevo-repo" />
+
+    <label for="filecontent">Contenido de index.html:</label>
+    <textarea id="filecontent" placeholder="Pega aquí el código para index.html"></textarea>
+
+    <button id="uploadBtn" onclick="crearRepoYSubir()" disabled>Crear, Subir y Activar Pages</button>
+
+    <div id="message" class="message"></div>
+  </div>
+
+  <script>
+    const tokenInput = document.getElementById('token');
+    const repoInput = document.getElementById('repoName');
+    const contentInput = document.getElementById('filecontent');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const messageDiv = document.getElementById('message');
+
+    function validarBoton() {
+      uploadBtn.disabled = !(tokenInput.value.trim() && repoInput.value.trim() && contentInput.value.trim());
+    }
+
+    tokenInput.addEventListener('input', validarBoton);
+    repoInput.addEventListener('input', validarBoton);
+    contentInput.addEventListener('input', validarBoton);
+
+    async function crearRepoYSubir() {
+      uploadBtn.disabled = true;
+      messageDiv.classList.remove('visible');
+      messageDiv.textContent = 'Procesando...';
+
+      const token = tokenInput.value.trim();
+      const repoName = repoInput.value.trim();
+      const content = contentInput.value;
+      const branch = 'main';
+      const path = 'index.html';
+
+      const contentBase64 = btoa(unescape(encodeURIComponent(content)));
+
+      try {
+        messageDiv.textContent = `Creando repositorio "${repoName}" si no existe...`;
+        let createRes = await fetch('https://api.github.com/user/repos', {
+          method: 'POST',
+          headers: {
+            Authorization: `token ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: repoName,
+            description: "Repositorio creado desde panel",
+            private: false,
+            auto_init: false
+          })
+        });
+
+        if(createRes.status === 422) {
+          messageDiv.textContent = `Repositorio "${repoName}" ya existe. Subiendo archivo...`;
+        } else if(createRes.status === 201) {
+          messageDiv.textContent = `Repositorio "${repoName}" creado. Subiendo archivo...`;
+        } else {
+          const err = await createRes.json();
+          throw new Error(err.message || 'Error creando repositorio');
+        }
+
+        let sha = null;
+        try {
+          const getRes = await fetch(`https://api.github.com/repos/${await getUserLogin(token)}/${repoName}/contents/${encodeURIComponent(path)}?ref=${branch}`, {
+            headers: { Authorization: `token ${token}` }
+          });
+          if(getRes.status === 200) {
+            const json = await getRes.json();
+            sha = json.sha;
+          }
+        } catch (e) {}
+
+        const bodyData = {
+          message: `Subido por panel - archivo ${path}`,
+          content: contentBase64,
+          branch: branch,
+          ...(sha && { sha: sha })
+        };
+
+        const putRes = await fetch(`https://api.github.com/repos/${await getUserLogin(token)}/${repoName}/contents/${encodeURIComponent(path)}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `token ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyData)
+        });
+
+        if(putRes.status === 201 || putRes.status === 200) {
+          messageDiv.textContent = 'Archivo subido con éxito. Activando GitHub Pages...';
+          messageDiv.classList.add('visible');
+
+          await activarGitHubPages(token, await getUserLogin(token), repoName);
+
+          messageDiv.textContent = 'GitHub Pages activado. Esperando 10 segundos antes de mostrar el enlace público...';
+
+          await animacionEspera(10);
+
+          const user = await getUserLogin(token);
+          // URL pública GitHub Pages
+          const publicUrl = `https://${user}.github.io/${repoName}/index.html`;
+
+          messageDiv.innerHTML = `
+            ✔️ Página pública disponible en: 
+            <a class="link" href="${publicUrl}" target="_blank" rel="noopener">${publicUrl}</a>
+            <div class="copy-container">
+              <button class="copy-btn" onclick="copiarAlPortapapeles('${publicUrl}')">Copiar enlace</button>
+            </div>
+          `;
+          uploadBtn.disabled = false;
+        } else {
+          const err = await putRes.json();
+          throw new Error(err.message || 'Error al subir archivo');
+        }
+
+      } catch (error) {
+        messageDiv.textContent = 'Error: ' + error.message;
+        messageDiv.classList.add('visible');
+        uploadBtn.disabled = false;
+      }
+    }
+
+    async function activarGitHubPages(token, user, repoName) {
+      const urlPages = `https://api.github.com/repos/${user}/${repoName}/pages`;
+      const bodyPages = {
+        source: {
+          branch: "main",
+          path: "/"
+        }
+      };
+
+      // Primero, intentamos obtener configuración actual
+      let configRes = await fetch(urlPages, {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (configRes.status === 404) {
+        // No existe configuración, creamos
+        let createRes = await fetch(urlPages, {
+          method: 'POST',
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyPages)
+        });
+
+        if (!createRes.ok) {
+          const errorData = await createRes.json();
+          throw new Error('Error activando GitHub Pages: ' + (errorData.message || createRes.statusText));
+        }
+      } else if (configRes.ok) {
+        // Existe, hacemos PATCH para actualizar a main y /
+        let updateRes = await fetch(urlPages, {
+          method: 'PUT',
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyPages)
+        });
+
+        if (!updateRes.ok) {
+          const errorData = await updateRes.json();
+          throw new Error('Error actualizando GitHub Pages: ' + (errorData.message || updateRes.statusText));
+        }
+      } else {
+        const err = await configRes.json();
+        throw new Error('Error obteniendo configuración de Pages: ' + (err.message || configRes.statusText));
+      }
+    }
+
+    async function getUserLogin(token) {
+      const res = await fetch('https://api.github.com/user', {
+        headers: { Authorization: `token ${token}` }
+      });
+      const data = await res.json();
+      return data.login;
+    }
+
+    async function animacionEspera(segundos) {
+      for(let i = segundos; i > 0; i--) {
+        messageDiv.textContent = `Archivo subido y GitHub Pages activado. Mostrando enlace público en ${i} segundos...`;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
+    function copiarAlPortapapeles(texto) {
+      navigator.clipboard.writeText(texto).then(() => {
+        alert('Enlace copiado al portapapeles 💛');
+      }).catch(() => {
+        alert('Error al copiar enlace 😢');
+      });
+    }
+  </script>
+</body>
+</html>
